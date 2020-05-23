@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,10 +13,7 @@
 
 static const int MAX_EVENTS = 10;
 
-void setnonblocking(int fd) {
-}
-
-void do_use_fd(int fd) {
+void onConnect(int fd) {
 }
 
 int main(int argc, char* argv[]) {
@@ -47,18 +45,23 @@ int main(int argc, char* argv[]) {
     }
     for (int n = 0; n < nfds; ++n) {
       if (events[n].data.fd != l.fd) {
-        do_use_fd(events[n].data.fd);
+        onConnect(events[n].data.fd);
       }
       NetConn c;
       rc = net_accept(&l, &c);
       if (rc == -1) {
         goto error;
       }
-      //      setnonblocking(newS);
+      rc = fcntl(c.fd, F_SETFL, fcntl(c.fd, F_GETFL, 0) | O_NONBLOCK);
+      if (rc < 0) {
+        perror("fcntl");
+        goto error;
+      }
       ev.events = EPOLLIN | EPOLLET;
       ev.data.fd = c.fd;
-      if (epoll_ctl(epollfd, EPOLL_CTL_ADD, c.fd, &ev) == -1) {
-        perror("epoll_ctl: newS");
+      rc = epoll_ctl(epollfd, EPOLL_CTL_ADD, c.fd, &ev);
+      if (rc < 0) {
+        perror("epoll_ctl add conn socket");
         goto error;
       }
     }
