@@ -13,7 +13,9 @@
 
 static const int MAX_EVENTS = 10;
 
-void onConnect(int fd) {
+// 1 - Connection closed
+// 0 - Ok
+int onConnect(int fd) {
   printf("%s: handling %d\n", __FUNCTION__, fd);
   const size_t bufSize = 8192;
   uint8_t buf[bufSize];
@@ -22,26 +24,27 @@ void onConnect(int fd) {
   rc = recv(fd, buf, bufSize, 0);
   if (rc == EAGAIN || rc == EWOULDBLOCK) {
     printf("%s: reading from %d would block\n", __FUNCTION__, fd);
-    return;
+    return 0;
   }
   if (rc < 0) {
     perror("recv");
-    return;
+    return 0;
   }
   if (rc == 0) {
     printf("%s: %d closed the connection\n", __FUNCTION__, fd);
-    return;
+    return 1;
   }
   printf("%s: %d: %d %s\n", __FUNCTION__, fd, rc, (char*)buf);
   rc = send(fd, buf, rc, 0);
   if (rc == EAGAIN || rc == EWOULDBLOCK) {
     printf("%s: writing to %d would block\n", __FUNCTION__, fd);
-    return;
+    return 0;
   }
   if (rc < 0) {
     perror("send");
-    return;
+    return 0;
   }
+  return 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -73,7 +76,17 @@ int main(int argc, char* argv[]) {
     }
     for (int n = 0; n < nfds; ++n) {
       if (events[n].data.fd != l.fd) {
-        onConnect(events[n].data.fd);
+        rc = onConnect(events[n].data.fd);
+        if (rc == 0) {
+          continue;
+        }
+        rc = epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL);
+        if (rc < 0) {
+          perror("epoll_ctl del conn socket");
+          goto error;
+        }
+        close(events[n].data.fd);
+        printf("%d removed\n", events[n].data.fd);
         continue;
       }
       NetConn c;
@@ -93,6 +106,7 @@ int main(int argc, char* argv[]) {
         perror("epoll_ctl add conn socket");
         goto error;
       }
+      printf("%d added\n", c.fd);
     }
   }
   return 0;
