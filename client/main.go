@@ -1,13 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
-func main() {
+func sendReq(wg *sync.WaitGroup, i int) {
+	defer wg.Done()
 	start := time.Now()
 	conn, err := net.Dial("tcp", "localhost:55443")
 	if err != nil {
@@ -26,5 +29,17 @@ func main() {
 		os.Exit(1)
 	}
 	end := time.Now()
-	fmt.Printf("wrote %d, read %d in %v\n", nwrite, nread, end.Sub(start))
+	fmt.Printf("%d: wrote %d, read %d in %v\n", i, nwrite, nread, end.Sub(start))
+}
+
+func main() {
+	var concurrency int
+	flag.IntVar(&concurrency, "c", 100, "number of concurrent connections")
+	flag.Parse()
+	var wg sync.WaitGroup
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go sendReq(&wg, i)
+	}
+	wg.Wait()
 }
