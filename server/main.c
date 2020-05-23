@@ -14,6 +14,34 @@
 static const int MAX_EVENTS = 10;
 
 void onConnect(int fd) {
+  printf("%s: handling %d\n", __FUNCTION__, fd);
+  const size_t bufSize = 8192;
+  uint8_t buf[bufSize];
+  memset(buf, 0, bufSize);
+  int rc;
+  rc = recv(fd, buf, bufSize, 0);
+  if (rc == EAGAIN || rc == EWOULDBLOCK) {
+    printf("%s: reading from %d would block\n", __FUNCTION__, fd);
+    return;
+  }
+  if (rc < 0) {
+    perror("recv");
+    return;
+  }
+  if (rc == 0) {
+    printf("%s: %d closed the connection\n", __FUNCTION__, fd);
+    return;
+  }
+  printf("%s: %d: %d %s\n", __FUNCTION__, fd, rc, (char*)buf);
+  rc = send(fd, buf, rc, 0);
+  if (rc == EAGAIN || rc == EWOULDBLOCK) {
+    printf("%s: writing to %d would block\n", __FUNCTION__, fd);
+    return;
+  }
+  if (rc < 0) {
+    perror("send");
+    return;
+  }
 }
 
 int main(int argc, char* argv[]) {
@@ -46,6 +74,7 @@ int main(int argc, char* argv[]) {
     for (int n = 0; n < nfds; ++n) {
       if (events[n].data.fd != l.fd) {
         onConnect(events[n].data.fd);
+        continue;
       }
       NetConn c;
       rc = net_accept(&l, &c);
