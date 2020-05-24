@@ -110,7 +110,7 @@ error:
 // TODO: use multiple threads for request
 // handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
 int main(int argc, char* argv[]) {
-  pthread_t tids[4];
+  pthread_t tids[4]; // TODO: thread count supplied as cmd arg
   int rc;
   for (int i = 0; i < 4; ++i) {
     rc = pthread_create(&tids[i], NULL, &onAccept, NULL);
