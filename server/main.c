@@ -1,5 +1,4 @@
 #include <errno.h>
-#include <fcntl.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +15,6 @@ static const int MAX_EVENTS = 10;
 // 1 - Connection closed
 // 0 - Ok
 int onRequest(int fd) {
-  printf("%s: handling %d\n", __FUNCTION__, fd);
   const size_t bufSize = 8192;
   uint8_t buf[bufSize];
   memset(buf, 0, bufSize);
@@ -31,7 +29,6 @@ int onRequest(int fd) {
     return 0;
   }
   if (rc == 0) {
-    printf("%s: %d closed the connection\n", __FUNCTION__, fd);
     return 1;
   }
   printf("%s: %d: %d %s\n", __FUNCTION__, fd, rc, (char*)buf);
@@ -48,7 +45,8 @@ int onRequest(int fd) {
 }
 
 // TODO: use SO_REUSEPORT to load balance accepts(https://lwn.net/Articles/542629/)
-// TODO: use multiple threads for request handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
+// TODO: use multiple threads for request
+// handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
 int main(int argc, char* argv[]) {
   NetListener l;
   int rc = net_listen(&l, "tcp", NULL, "55443", 100);
@@ -88,17 +86,12 @@ int main(int argc, char* argv[]) {
           goto error;
         }
         close(events[n].data.fd);
-        printf("%d removed\n", events[n].data.fd);
+        printf("%s: %d closed\n", __FUNCTION__, events[n].data.fd);
         continue;
       }
       NetConn c;
       rc = net_accept(&l, &c);
       if (rc == -1) {
-        goto error;
-      }
-      rc = fcntl(c.fd, F_SETFL, fcntl(c.fd, F_GETFL, 0) | O_NONBLOCK);
-      if (rc < 0) {
-        perror("fcntl");
         goto error;
       }
       ev.events = EPOLLIN;

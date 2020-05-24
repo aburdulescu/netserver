@@ -1,6 +1,7 @@
 #include "net.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,6 +69,11 @@ int net_accept(const NetListener* l, NetConn* c) {
   c->fd = accept(l->fd, (struct sockaddr*)&addr, &addrlen);
   if (c->fd < 0) {
     perror("accept");
+    return -1;
+  }
+  int rc = fcntl(c->fd, F_SETFL, fcntl(c->fd, F_GETFL, 0) | O_NONBLOCK);
+  if (rc < 0) {
+    perror("fcntl");
     return -1;
   }
   return 0;
