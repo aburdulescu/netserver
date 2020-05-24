@@ -7,3 +7,4 @@ set(CMAKE_CXX_FLAGS "-Wall -Werror -fno-omit-frame-pointer -fsanitize=address")
 set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fno-omit-frame-pointer -fsanitize=address")
 
 add_executable(epolls main.c net.c)
+target_link_libraries(epolls PUBLIC pthread)

@@ -38,7 +38,7 @@ int net_listen(NetListener* l, char* protocol, char* addr, char* port, int backl
       continue;
     }
     int yes = 1;
-    rc = setsockopt(l->fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+    rc = setsockopt(l->fd, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int));
     if (rc < 0) {
       perror("setsockopt");
       continue;

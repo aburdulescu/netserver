@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <netdb.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +15,7 @@ static const int MAX_EVENTS = 10;
 
 // 1 - Connection closed
 // 0 - Ok
-int onRequest(int fd) {
+static int onRead(int fd) {
   const size_t bufSize = 8192;
   uint8_t buf[bufSize];
   memset(buf, 0, bufSize);
@@ -44,15 +45,12 @@ int onRequest(int fd) {
   return 0;
 }
 
-// TODO: use SO_REUSEPORT to load balance accepts(https://lwn.net/Articles/542629/)
-// TODO: use multiple threads for request
-// handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
-int main(int argc, char* argv[]) {
+static void* onAccept(void* args) {
   NetListener l;
   int rc = net_listen(&l, "tcp", NULL, "55443", 100);
   if (rc < 0) {
     fprintf(stderr, "server: socket_open failed\n");
-    return 1;
+    return NULL;
   }
   int epollfd = epoll_create1(0);
   if (epollfd == -1) {
@@ -65,7 +63,7 @@ int main(int argc, char* argv[]) {
   rc = epoll_ctl(epollfd, EPOLL_CTL_ADD, l.fd, &ev);
   if (rc < 0) {
     perror("epoll_ctl: listen_sock");
-    exit(1);
+    return NULL;
   }
   struct epoll_event events[MAX_EVENTS];
   for (;;) {
@@ -76,7 +74,7 @@ int main(int argc, char* argv[]) {
     }
     for (int n = 0; n < nfds; ++n) {
       if (events[n].data.fd != l.fd) {
-        rc = onRequest(events[n].data.fd);
+        rc = onRead(events[n].data.fd);
         if (rc == 0) {
           continue;
         }
@@ -101,11 +99,30 @@ int main(int argc, char* argv[]) {
         perror("epoll_ctl add conn socket");
         goto error;
       }
-      printf("%d added\n", c.fd);
+    }
+  }
+error:
+  close(l.fd);
+  return NULL;
+}
+
+// TODO: handle server shutdown
+// TODO: use multiple threads for request
+// handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
+int main(int argc, char* argv[]) {
+  pthread_t tids[4];
+  int rc;
+  for (int i = 0; i < 4; ++i) {
+    rc = pthread_create(&tids[i], NULL, &onAccept, NULL);
+    if (rc != 0) {
+      perror("phread_create");
+    }
+  }
+  for (int i = 0; i < 4; ++i) {
+    rc = pthread_join(tids[i], NULL);
+    if (rc != 0) {
+      perror("phread_join");
     }
   }
   return 0;
-error:
-  close(l.fd);
-  return 1;
 }
