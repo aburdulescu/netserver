@@ -47,6 +47,8 @@ int onRequest(int fd) {
   return 0;
 }
 
+// TODO: use SO_REUSEPORT to load balance accepts(https://lwn.net/Articles/542629/)
+// TODO: use multiple threads for request handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
 int main(int argc, char* argv[]) {
   NetListener l;
   int rc = net_listen(&l, "tcp", NULL, "55443", 100);
