@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
         perror("fcntl");
         goto error;
       }
-      ev.events = EPOLLIN | EPOLLET;
+      ev.events = EPOLLIN;
       ev.data.fd = c.fd;
       rc = epoll_ctl(epollfd, EPOLL_CTL_ADD, c.fd, &ev);
       if (rc < 0) {
