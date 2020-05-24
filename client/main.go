@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-func sendReq(id int, n int, results chan []time.Duration) {
+func sendReq(addr string, id int, n int, results chan []time.Duration) {
 	out := []byte("abcdefghijklmnopqrstuvwxyz")
 	in := make([]byte, 8192)
-	conn, err := net.Dial("tcp", "localhost:55443")
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return
@@ -41,6 +41,8 @@ func sendReq(id int, n int, results chan []time.Duration) {
 }
 
 func main() {
+	var addr string
+	flag.StringVar(&addr, "s", "localhost:55443", "server address")
 	var requests int
 	flag.IntVar(&requests, "r", 10, "number of requests per connection")
 	var concurrency int
@@ -48,7 +50,7 @@ func main() {
 	flag.Parse()
 	results := make(chan []time.Duration, concurrency)
 	for i := 0; i < concurrency; i++ {
-		go sendReq(i, requests, results)
+		go sendReq(addr, i, requests, results)
 	}
 	sum := time.Duration(0)
 	for i := 0; i < concurrency; i++ {
