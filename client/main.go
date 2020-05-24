@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 	"time"
 )
 
-func sendReq(wg *sync.WaitGroup, id int, n int) {
-	defer wg.Done()
+func sendReq(id int, n int, results chan []time.Duration) {
 	out := []byte("abcdefghijklmnopqrstuvwxyz")
 	in := make([]byte, 8192)
 	conn, err := net.Dial("tcp", "localhost:55443")
@@ -19,6 +17,8 @@ func sendReq(wg *sync.WaitGroup, id int, n int) {
 		return
 	}
 	defer conn.Close()
+	sum := time.Duration(0)
+	times := make([]time.Duration, n)
 	for i := 0; i < n; i++ {
 		start := time.Now()
 		_, err = conn.Write(out)
@@ -32,8 +32,12 @@ func sendReq(wg *sync.WaitGroup, id int, n int) {
 			return
 		}
 		end := time.Now()
-		fmt.Printf("[%d] %d %v\n", id, i, end.Sub(start))
+		times[i] = end.Sub(start)
+		sum += times[i]
 	}
+	avg := sum / time.Duration(n)
+	fmt.Printf("[%d] %v\n", id, avg)
+	results <- times
 }
 
 func main() {
@@ -42,10 +46,17 @@ func main() {
 	var concurrency int
 	flag.IntVar(&concurrency, "c", 100, "number of concurrent connections")
 	flag.Parse()
-	var wg sync.WaitGroup
+	results := make(chan []time.Duration, concurrency)
 	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go sendReq(&wg, i, requests)
+		go sendReq(i, requests, results)
 	}
-	wg.Wait()
+	sum := time.Duration(0)
+	for i := 0; i < concurrency; i++ {
+		r := <-results
+		for j := 0; j < len(r); j++ {
+			sum += r[j]
+		}
+	}
+	avg := sum / time.Duration(concurrency*requests)
+	fmt.Printf("total average time: %v\n", avg)
 }
