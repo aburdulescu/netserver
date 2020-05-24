@@ -15,7 +15,7 @@ static const int MAX_EVENTS = 10;
 
 // 1 - Connection closed
 // 0 - Ok
-int onConnect(int fd) {
+int onRequest(int fd) {
   printf("%s: handling %d\n", __FUNCTION__, fd);
   const size_t bufSize = 8192;
   uint8_t buf[bufSize];
@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
     }
     for (int n = 0; n < nfds; ++n) {
       if (events[n].data.fd != l.fd) {
-        rc = onConnect(events[n].data.fd);
+        rc = onRequest(events[n].data.fd);
         if (rc == 0) {
           continue;
         }
