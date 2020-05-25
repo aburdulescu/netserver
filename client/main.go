@@ -9,7 +9,7 @@ import (
 )
 
 func sendReq(addr string, id int, n int, results chan []time.Duration) {
-	out := []byte("abcdefghijklmnopqrstuvwxyz")
+	out := []byte("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz")
 	in := make([]byte, 8192)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
