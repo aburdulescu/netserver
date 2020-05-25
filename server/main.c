@@ -32,7 +32,7 @@ static int onRead(int fd) {
   if (rc == 0) {
     return 1;
   }
-  printf("%s: %d: %d %s\n", __FUNCTION__, fd, rc, (char*)buf);
+  /* printf("%s: %d: %d %s\n", __FUNCTION__, fd, rc, (char*)buf); */
   rc = send(fd, buf, rc, 0);
   if (rc == EAGAIN || rc == EWOULDBLOCK) {
     printf("%s: writing to %d would block\n", __FUNCTION__, fd);
@@ -84,7 +84,7 @@ static void* onAccept(void* args) {
           goto error;
         }
         close(events[n].data.fd);
-        printf("%s: %d closed\n", __FUNCTION__, events[n].data.fd);
+        /* printf("%s: %d closed\n", __FUNCTION__, events[n].data.fd); */
         continue;
       }
       NetConn c;
@@ -110,15 +110,20 @@ error:
 // TODO: use multiple threads for request
 // handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
 int main(int argc, char* argv[]) {
-  pthread_t tids[4]; // TODO: thread count supplied as cmd arg
+  if (argc < 2) {
+    fprintf(stderr, "error: need listeners count\n");
+    return 1;
+  }
+  int listeners = atoi(argv[1]);
+  pthread_t tids[listeners];
   int rc;
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < listeners; ++i) {
     rc = pthread_create(&tids[i], NULL, &onAccept, NULL);
     if (rc != 0) {
       perror("phread_create");
     }
   }
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < listeners; ++i) {
     rc = pthread_join(tids[i], NULL);
     if (rc != 0) {
       perror("phread_join");
