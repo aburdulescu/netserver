@@ -35,8 +35,6 @@ func sendReq(addr string, id int, n int, results chan []time.Duration) {
 		times[i] = end.Sub(start)
 		sum += times[i]
 	}
-	avg := sum / time.Duration(n)
-	fmt.Printf("[%d] %v\n", id, avg)
 	results <- times
 }
 
@@ -59,6 +57,14 @@ func main() {
 			sum += r[j]
 		}
 	}
-	avg := sum / time.Duration(concurrency*requests)
-	fmt.Printf("total average time: %v\n", avg)
+	totalReq := int64(concurrency * requests)
+	avgTime := sum / time.Duration(totalReq)
+	fmt.Printf("average time/request: %v\n", avgTime)
+	sumInSec := int64(sum.Seconds())
+	if sumInSec == 0 {
+		fmt.Printf("requests/second: N.A.\n")
+		return
+	}
+	reqPerSec := totalReq / sumInSec
+	fmt.Printf("requests/second: %v\n", reqPerSec)
 }
