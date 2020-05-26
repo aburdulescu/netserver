@@ -121,7 +121,7 @@ error:
 const size_t MQ_MAX_NAME = 16;
 
 int createMq(int i, char* mqName) {
-  const char mqNamePrefix[] = "/epolls_mq_";
+  const char mqNamePrefix[] = "/epolls_mq";
   const size_t mqNamePrefixSize = strlen(mqNamePrefix);
   memset(mqName, 0, MQ_MAX_NAME);
   strncpy(mqName, mqNamePrefix, mqNamePrefixSize);
@@ -130,8 +130,8 @@ int createMq(int i, char* mqName) {
   attr.mq_maxmsg = 10;
   attr.mq_msgsize = 256;
   attr.mq_curmsgs = 0;
-  char istr[2];
-  memset(istr, 0, 2);
+  char istr[3];
+  memset(istr, 0, 3);
   sprintf(istr, "%d", i);
   strncpy(mqName + mqNamePrefixSize, istr, 1);
   int rc = mq_open(mqName, O_RDWR | O_CREAT | O_NONBLOCK, 0660, &attr);
@@ -185,7 +185,7 @@ int main(int argc, char* argv[]) {
   }
   while (!gExit) {
   }
-  const char buf[] = "dummy";
+  const char buf[] = "die";
   for (int i = 0; i < listenersSize; ++i) {
     rc = mq_send(listeners[i].mq, buf, sizeof(buf), 0);
     if (rc < 0) {
