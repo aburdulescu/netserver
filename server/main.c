@@ -15,6 +15,48 @@
 
 static const int MAX_EVENTS = 10;
 
+typedef struct {
+  int* data;
+  size_t len;
+  size_t cap;
+} IntList;
+
+static void intlist_new(IntList* l, size_t cap) {
+  l->cap = cap;
+  l->len = 0;
+  l->data = (int*)malloc(sizeof(int) * cap);
+}
+
+static void intlist_delete(const IntList* l) {
+  free(l->data);
+}
+
+static void intlist_insert(IntList* l, int v) {
+  if (l->len == l->cap) {
+    l->cap *= 2;
+    l->data = (int*)realloc(l->data, l->cap);
+    return;
+  }
+  l->data[l->len] = v;
+  ++l->len;
+}
+
+static int intlist_at(const IntList* l, int i) {
+  if (i < 0 && i >= l->len) {
+    return -1;
+  }
+  return l->data[i];
+}
+
+static int* intlist_find(const IntList* l, int v) {
+  for (int i = 0; i < l->len; ++i) {
+    if (l->data[i] == v) {
+      return l->data + i;
+    }
+  }
+  return NULL;
+}
+
 // 1 - Connection closed
 // 0 - Ok
 static int onRead(int fd) {
@@ -74,6 +116,8 @@ static void* onAccept(void* args) {
     perror("epoll_ctl: mq");
     return NULL;
   }
+  IntList connections;
+  intlist_new(&connections, 10);
   struct epoll_event events[MAX_EVENTS];
   for (;;) {
     int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
@@ -95,6 +139,7 @@ static void* onAccept(void* args) {
           perror("epoll_ctl add conn socket");
           goto error;
         }
+        intlist_insert(&connections, c.fd); // TODO: fix problems with realloc
       } else if (events[n].data.fd == mq) {
         goto error;
       } else {
@@ -108,10 +153,25 @@ static void* onAccept(void* args) {
           goto error;
         }
         close(events[n].data.fd);
+        int* it = intlist_find(&connections, events[n].data.fd);
+        if (it == NULL) {
+          continue;
+        }
+        *it = -1;
       }
     }
   }
 error:
+  printf("%d: ", mq);
+  for (int i = 0; i < connections.len; ++i) {
+    int v = intlist_at(&connections, i);
+    if (v == -1) {
+      continue;
+    }
+    printf("%d ", v);
+  }
+  printf("\n");
+  intlist_delete(&connections);
   close(l.fd);
   close(epollfd);
   // TODO: close registered conn sockets
@@ -200,6 +260,7 @@ int main(int argc, char* argv[]) {
     listeners[i].mq = mq;
     listeners[i].args = (int*)malloc(sizeof(int));
     *(listeners[i].args) = mq;
+    printf("thread %d mq %d\n", i, mq);
     rc = pthread_create(&listeners[i].id, NULL, &onAccept, listeners[i].args);
     if (rc != 0) {
       perror("phread_create");
