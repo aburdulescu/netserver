@@ -118,23 +118,35 @@ error:
   return NULL;
 }
 
-const size_t MQ_MAX_NAME = 16;
+const size_t MQ_MAX_NAME = 128;
+const char gMqNamePrefix[] = "/epolls_mq_";
+const size_t gMqNamePrefixSize = sizeof(gMqNamePrefix) - 1;
 
-int createMq(int i, char* mqName) {
-  const char mqNamePrefix[] = "/epolls_mq";
-  const size_t mqNamePrefixSize = strlen(mqNamePrefix);
+int createMq(int i, char* mqSuffix, char* mqName, int block) {
   memset(mqName, 0, MQ_MAX_NAME);
-  strncpy(mqName, mqNamePrefix, mqNamePrefixSize);
+  strncpy(mqName, gMqNamePrefix, gMqNamePrefixSize);
   struct mq_attr attr;
   attr.mq_flags = 0;
   attr.mq_maxmsg = 10;
   attr.mq_msgsize = 256;
   attr.mq_curmsgs = 0;
-  char istr[3];
-  memset(istr, 0, 3);
-  sprintf(istr, "%d", i);
-  strncpy(mqName + mqNamePrefixSize, istr, 2);
-  int rc = mq_open(mqName, O_RDWR | O_CREAT | O_NONBLOCK, 0660, &attr);
+  int prefixEnd = gMqNamePrefixSize;
+  if (mqSuffix != NULL) {
+    size_t mqSuffixSize = strlen(mqSuffix);
+    strncpy(mqName + prefixEnd, mqSuffix, mqSuffixSize);
+    prefixEnd += mqSuffixSize;
+  }
+  if (i != -1) {
+    char istr[3];
+    memset(istr, 0, 3);
+    sprintf(istr, "%d", i);
+    strncpy(mqName + prefixEnd, istr, 2);
+  }
+  int rc;
+  if (block)
+    rc = mq_open(mqName, O_RDWR | O_CREAT, 0660, &attr);
+  else
+    rc = mq_open(mqName, O_RDWR | O_CREAT | O_NONBLOCK, 0660, &attr);
   if (rc < 0) {
     perror("mq_open");
     return -1;
@@ -142,17 +154,23 @@ int createMq(int i, char* mqName) {
   return rc;
 }
 
-static int gExit = 0;
+int gMainMq;
 
 void onSignal(int s) {
-  gExit = 1;
+  (void)s;
+  const char buf[] = "die";
+  int rc = mq_send(gMainMq, buf, sizeof(buf), 0);
+  if (rc < 0) {
+    perror("mq_send");
+    return;
+  }
 }
 
 typedef struct {
   int* args;
   pthread_t id;
   int mq;
-  char mqName[16];
+  char mqName[128];
 } ListenerInfo;
 
 // TODO: use multiple threads for request
@@ -165,12 +183,17 @@ int main(int argc, char* argv[]) {
   signal(SIGINT, onSignal);
   signal(SIGSEGV, onSignal);
   signal(SIGABRT, onSignal);
+  char mainMqName[MQ_MAX_NAME];
+  gMainMq = createMq(-1, "main", mainMqName, 1);
+  if (gMainMq < 0) {
+    return 1;
+  }
   const int listenersSize = atoi(argv[1]);
   ListenerInfo listeners[listenersSize];
   memset(listeners, 0, sizeof(listeners));
   int rc;
   for (int i = 0; i < listenersSize; ++i) {
-    int mq = createMq(i, listeners[i].mqName);
+    int mq = createMq(i, NULL, listeners[i].mqName, 0);
     if (mq < 0) {
       continue;
     }
@@ -183,7 +206,16 @@ int main(int argc, char* argv[]) {
       continue;
     }
   }
-  while (!gExit) {
+  char recvBuf[256];
+  memset(recvBuf, 0, 256);
+  int exit = 0;
+  while (!exit) {
+    int rc = mq_receive(gMainMq, recvBuf, sizeof(recvBuf), 0);
+    if (rc < 0) {
+      perror("mq_receive");
+      return 1;
+    }
+    exit = 1;
   }
   const char buf[] = "die";
   for (int i = 0; i < listenersSize; ++i) {
@@ -202,6 +234,10 @@ int main(int argc, char* argv[]) {
       perror("mq_unlink");
     }
     free(listeners[i].args);
+  }
+  rc = mq_unlink(mainMqName);
+  if (rc != 0) {
+    perror("mq_unlink");
   }
   return 0;
 }
