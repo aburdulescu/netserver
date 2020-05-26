@@ -133,7 +133,7 @@ int createMq(int i, char* mqName) {
   char istr[3];
   memset(istr, 0, 3);
   sprintf(istr, "%d", i);
-  strncpy(mqName + mqNamePrefixSize, istr, 1);
+  strncpy(mqName + mqNamePrefixSize, istr, 2);
   int rc = mq_open(mqName, O_RDWR | O_CREAT | O_NONBLOCK, 0660, &attr);
   if (rc < 0) {
     perror("mq_open");
@@ -152,7 +152,7 @@ typedef struct {
   int* args;
   pthread_t id;
   int mq;
-  char mqName[MQ_MAX_NAME];
+  char mqName[16];
 } ListenerInfo;
 
 // TODO: use multiple threads for request
