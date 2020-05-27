@@ -170,19 +170,16 @@ static void* onAccept(void* args) {
     }
   }
 error:
-  printf("%d: ", mq);
   for (int i = 0; i < connections.len; ++i) {
     int v = intlist_at(&connections, i);
     if (v == -1) {
       continue;
     }
-    printf("%d ", v);
+    close(v);
   }
-  printf("\n");
   intlist_delete(&connections);
   close(l.fd);
   close(epollfd);
-  // TODO: close registered conn sockets
   return NULL;
 }
 
@@ -268,7 +265,6 @@ int main(int argc, char* argv[]) {
     listeners[i].mq = mq;
     listeners[i].args = (int*)malloc(sizeof(int));
     *(listeners[i].args) = mq;
-    printf("thread %d mq %d\n", i, mq);
     rc = pthread_create(&listeners[i].id, NULL, &onAccept, listeners[i].args);
     if (rc != 0) {
       perror("phread_create");
