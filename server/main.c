@@ -22,7 +22,7 @@ typedef struct {
 } IntList;
 
 static void intlist_new(IntList* l, size_t cap) {
-  l->cap = cap;
+  l->cap = (cap == 0) ? 1 : cap;
   l->len = 0;
   l->data = (int*)malloc(sizeof(int) * cap);
 }
@@ -34,7 +34,10 @@ static void intlist_delete(const IntList* l) {
 static void intlist_insert(IntList* l, int v) {
   if (l->len == l->cap) {
     l->cap *= 2;
-    l->data = (int*)realloc(l->data, l->cap);
+    int* newData = (int*)malloc(sizeof(int) * l->cap);
+    memcpy(newData, l->data, l->len * sizeof(int));
+    free(l->data);
+    l->data = newData;
     return;
   }
   l->data[l->len] = v;
@@ -117,7 +120,7 @@ static void* onAccept(void* args) {
     return NULL;
   }
   IntList connections;
-  intlist_new(&connections, 10);
+  intlist_new(&connections, 0);
   struct epoll_event events[MAX_EVENTS];
   for (;;) {
     int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
@@ -139,7 +142,12 @@ static void* onAccept(void* args) {
           perror("epoll_ctl add conn socket");
           goto error;
         }
-        intlist_insert(&connections, c.fd); // TODO: fix problems with realloc
+        int* it = intlist_find(&connections, -1);
+        if (it == NULL) {
+          intlist_insert(&connections, c.fd);
+        } else {
+          *it = c.fd;
+        }
       } else if (events[n].data.fd == mq) {
         goto error;
       } else {
