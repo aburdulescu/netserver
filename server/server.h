@@ -2,9 +2,10 @@
 #define __EPOLLSERVER_SERVER_SERVER_H__
 
 #include <pthread.h>
+#include <stdint.h>
 
 typedef struct {
-  int i;
+  uint64_t i;
   int mq;
 } ServerListenerArgs;
 
@@ -16,11 +17,12 @@ typedef struct {
 
 typedef struct {
   ServerListener* listeners;
+  size_t listenersLen;
 } Server;
 
-void server_new(size_t n);
+void server_new(Server* s, size_t n);
 void server_delete();
-void server_start();
+int server_start();
 void server_stop();
 
 #endif

@@ -1,34 +1,48 @@
 #include "server.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include <sys/epoll.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "intvector.h"
 #include "net.h"
 
-static void* onAccept(void* args);
+static const int kMaxEvents = 10;
 
-void server_new(size_t n) {
+static void* onAccept(void* args);
+static int onRead(int fd);
+
+void server_new(Server* s, size_t n) {
   const size_t listenersSize = sizeof(ServerListener) * n;
-  ServerListener* listeners = (ServerListener*)malloc(listenersSize);
-  memset(listeners, 0, listenersSize);
-  int rc;
-  for (int i = 0; i < n; ++i) {
-    int mq = createMq(i, NULL, listeners[i].mqName, 0);
+  s->listenersLen = n;
+  s->listeners = (ServerListener*)malloc(listenersSize);
+  memset(s->listeners, 0, listenersSize);
+  for (uint64_t i = 0; i < s->listenersLen; ++i) {
+    int mq = createMq(i, NULL, s->listeners[i].mqName, 0);
     if (mq < 0) {
       continue;
     }
-    listeners[i].args = (ServerListenerArgs*)malloc(sizeof(ServerListenerArgs));
-    listeners[i].args->mq = mq;
-    listeners[i].args->i = i;
-    rc = pthread_create(&listeners[i].id, NULL, &onAccept, listeners[i].args);
+    s->listeners[i].args = (ServerListenerArgs*)malloc(sizeof(ServerListenerArgs));
+    s->listeners[i].args->mq = mq;
+    s->listeners[i].args->i = i;
+  }
+}
+
+int server_start(const Server* s) {
+  uint8_t startOk = 1;
+  for (uint64_t i = 0; i < s->listenersLen; ++i) {
+    int rc = pthread_create(&s->listeners[i].id, NULL, &onAccept, s->listeners[i].args);
     if (rc != 0) {
       perror("phread_create");
-      continue;
+      startOk &= 0;
     }
   }
+  return (startOk) ? 0 : -1;
 }
 
 static void* onAccept(void* args) {
@@ -122,4 +136,32 @@ error:
   close(l.fd);
   close(epollfd);
   return NULL;
+}
+
+static int onRead(int fd) {
+  const size_t bufSize = 8192;
+  uint8_t buf[bufSize];
+  int rc;
+  rc = recv(fd, buf, bufSize, 0);
+  if (rc == EAGAIN || rc == EWOULDBLOCK) {
+    printf("%s: reading from %d would block\n", __FUNCTION__, fd);
+    return 0;
+  }
+  if (rc < 0) {
+    perror("recv");
+    return 0;
+  }
+  if (rc == 0) {
+    return 1;
+  }
+  rc = send(fd, buf, rc, 0);
+  if (rc == EAGAIN || rc == EWOULDBLOCK) {
+    printf("%s: writing to %d would block\n", __FUNCTION__, fd);
+    return 0;
+  }
+  if (rc < 0) {
+    perror("send");
+    return 0;
+  }
+  return 0;
 }
