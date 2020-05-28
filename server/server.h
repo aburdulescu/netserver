@@ -21,8 +21,8 @@ typedef struct {
 } Server;
 
 void server_new(Server* s, size_t n);
-void server_delete();
-int server_start();
-void server_stop();
+void server_delete(const Server* s);
+int server_start(const Server* s);
+void server_stop(const Server* s);
 
 #endif

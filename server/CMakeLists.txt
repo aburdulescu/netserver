@@ -22,5 +22,6 @@ add_executable(epolls
   main.c
   net.c
   intvector.c
+  server.c
   )
 target_link_libraries(epolls PUBLIC pthread rt)

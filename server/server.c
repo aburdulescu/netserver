@@ -1,6 +1,7 @@
 #include "server.h"
 
 #include <errno.h>
+#include <mqueue.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,8 +14,16 @@
 #include "net.h"
 
 static const int kMaxEvents = 10;
+static const size_t kMqMaxName = 128;
+static const char kMqNamePrefix[] = "/epolls_mq_";
+static const size_t kMqNamePrefixSize = sizeof(kMqNamePrefix) - 1;
 
+static void createMqName(int i, char* mqName);
+static int createMq(const char* mqName);
 static void* onAccept(void* args);
+// Returns:
+//  0 - Ok
+//  1 - Connection closed
 static int onRead(int fd);
 
 void server_new(Server* s, size_t n) {
@@ -23,7 +32,8 @@ void server_new(Server* s, size_t n) {
   s->listeners = (ServerListener*)malloc(listenersSize);
   memset(s->listeners, 0, listenersSize);
   for (uint64_t i = 0; i < s->listenersLen; ++i) {
-    int mq = createMq(i, NULL, s->listeners[i].mqName, 0);
+    createMqName(i, s->listeners[i].mqName);
+    int mq = createMq(s->listeners[i].mqName);
     if (mq < 0) {
       continue;
     }
@@ -42,7 +52,60 @@ int server_start(const Server* s) {
       startOk &= 0;
     }
   }
-  return (startOk) ? 0 : -1;
+  if (!startOk) {
+    server_stop(s);
+    return -1;
+  }
+  return 0;
+}
+
+void server_stop(const Server* s) {
+  const char buf[] = "die";
+  for (uint64_t i = 0; i < s->listenersLen; ++i) {
+    int rc = mq_send(s->listeners[i].args->mq, buf, sizeof(buf), 0);
+    if (rc < 0) {
+      perror("mq_send");
+      continue;
+    }
+    rc = pthread_join(s->listeners[i].id, NULL);
+    if (rc != 0) {
+      perror("phread_join");
+    }
+  }
+}
+
+void server_delete(const Server* s) {
+  for (uint64_t i = 0; i < s->listenersLen; ++i) {
+    close(s->listeners[i].args->mq);
+    int rc = mq_unlink(s->listeners[i].mqName);
+    if (rc != 0) {
+      perror("mq_unlink");
+    }
+    free(s->listeners[i].args);
+  }
+}
+
+static void createMqName(int i, char* mqName) {
+  memset(mqName, 0, kMqMaxName);
+  strncpy(mqName, kMqNamePrefix, kMqNamePrefixSize);
+  char istr[3];
+  memset(istr, 0, 3);
+  sprintf(istr, "%d", i);
+  strncpy(mqName + kMqNamePrefixSize, istr, 2);
+}
+
+static int createMq(const char* mqName) {
+  struct mq_attr attr;
+  attr.mq_flags = 0;
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = 256;
+  attr.mq_curmsgs = 0;
+  int rc = mq_open(mqName, O_RDWR | O_CREAT | O_NONBLOCK, 0660, &attr);
+  if (rc < 0) {
+    perror("mq_open");
+    return -1;
+  }
+  return rc;
 }
 
 static void* onAccept(void* args) {
@@ -80,21 +143,21 @@ static void* onAccept(void* args) {
     int nfds = epoll_wait(epollfd, events, kMaxEvents, -1);
     if (nfds == -1) {
       perror("epoll_wait");
-      goto error;
+      goto cleanup;
     }
     for (int n = 0; n < nfds; ++n) {
       if (events[n].data.fd == l.fd) {
         NetConn c;
         rc = net_accept(&l, &c);
         if (rc == -1) {
-          goto error;
+          goto cleanup;
         }
         ev.events = EPOLLIN;
         ev.data.fd = c.fd;
         rc = epoll_ctl(epollfd, EPOLL_CTL_ADD, c.fd, &ev);
         if (rc < 0) {
           perror("epoll_ctl add conn socket");
-          goto error;
+          goto cleanup;
         }
         /* printf("[%d] new conn: %d\n", largs->i, c.fd); */
         int* it = intvector_find(&connections, -1);
@@ -104,7 +167,7 @@ static void* onAccept(void* args) {
           *it = c.fd;
         }
       } else if (events[n].data.fd == largs->mq) {
-        goto error;
+        goto cleanup;
       } else {
         rc = onRead(events[n].data.fd);
         if (rc == 0) {
@@ -113,7 +176,7 @@ static void* onAccept(void* args) {
         rc = epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL);
         if (rc < 0) {
           perror("epoll_ctl del conn socket");
-          goto error;
+          goto cleanup;
         }
         close(events[n].data.fd);
         int* it = intvector_find(&connections, events[n].data.fd);
@@ -124,7 +187,7 @@ static void* onAccept(void* args) {
       }
     }
   }
-error:
+cleanup:
   for (uint64_t i = 0; i < connections.len; ++i) {
     int v = intvector_at(&connections, i);
     if (v == -1) {
