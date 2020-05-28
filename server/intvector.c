@@ -26,7 +26,7 @@ void intvector_insert(IntVector* l, int v) {
   ++l->len;
 }
 
-int intvector_at(const IntVector* l, int i) {
+int intvector_at(const IntVector* l, uint64_t i) {
   if (i < 0 && i >= l->len) {
     return -1;
   }
@@ -34,7 +34,7 @@ int intvector_at(const IntVector* l, int i) {
 }
 
 int* intvector_find(const IntVector* l, int v) {
-  for (int i = 0; i < l->len; ++i) {
+  for (uint64_t i = 0; i < l->len; ++i) {
     if (l->data[i] == v) {
       return l->data + i;
     }

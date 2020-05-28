@@ -131,7 +131,7 @@ static void* onAccept(void* args) {
     }
   }
 error:
-  for (int i = 0; i < connections.len; ++i) {
+  for (uint64_t i = 0; i < connections.len; ++i) {
     int v = intvector_at(&connections, i);
     if (v == -1) {
       continue;
@@ -198,8 +198,6 @@ typedef struct {
   char mqName[128];
 } ListenerInfo;
 
-// TODO: use multiple threads for request
-// handling(https://idea.popcount.org/2017-02-20-epoll-is-fundamentally-broken-12/)
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     fprintf(stderr, "error: need listeners count\n");
