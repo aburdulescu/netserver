@@ -2,18 +2,18 @@ cmake_minimum_required(VERSION 3.10)
 
 project(epolls)
 
-option(EZPP_USE_ASAN "Use address sanitizer" ON)
+option(EPOLLS_USE_ASAN "Use address sanitizer" ON)
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-  set(EZPP_USE_ASAN "OFF")
+  set(EPOLLS_USE_ASAN "OFF")
 endif()
 
-message(STATUS "EZPP_USE_ASAN: " ${EZPP_USE_ASAN})
+message(STATUS "EPOLLS_USE_ASAN: " ${EPOLLS_USE_ASAN})
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_FLAGS "-Wall -Wextra")
 
-if(EZPP_USE_ASAN)
+if(EPOLLS_USE_ASAN)
   set(CMAKE_C_FLAGS "-Wall -Wextra -fno-omit-frame-pointer -fsanitize=address")
   set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fno-omit-frame-pointer -fsanitize=address")
 endif()

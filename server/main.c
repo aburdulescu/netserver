@@ -65,7 +65,6 @@ static int* intlist_find(const IntList* l, int v) {
 static int onRead(int fd) {
   const size_t bufSize = 8192;
   uint8_t buf[bufSize];
-  memset(buf, 0, bufSize);
   int rc;
   rc = recv(fd, buf, bufSize, 0);
   if (rc == EAGAIN || rc == EWOULDBLOCK) {
@@ -91,8 +90,13 @@ static int onRead(int fd) {
   return 0;
 }
 
+typedef struct {
+  int i;
+  int mq;
+} ListenerArgs;
+
 static void* onAccept(void* args) {
-  int mq = *((int*)args);
+  ListenerArgs* largs = (ListenerArgs*)args;
   NetListener l;
   int rc = net_listen(&l, "tcp", NULL, "55443", 100);
   if (rc < 0) {
@@ -113,8 +117,8 @@ static void* onAccept(void* args) {
     return NULL;
   }
   ev.events = EPOLLIN;
-  ev.data.fd = mq;
-  rc = epoll_ctl(epollfd, EPOLL_CTL_ADD, mq, &ev);
+  ev.data.fd = largs->mq;
+  rc = epoll_ctl(epollfd, EPOLL_CTL_ADD, largs->mq, &ev);
   if (rc < 0) {
     perror("epoll_ctl: mq");
     return NULL;
@@ -142,13 +146,14 @@ static void* onAccept(void* args) {
           perror("epoll_ctl add conn socket");
           goto error;
         }
+        /* printf("[%d] new conn: %d\n", largs->i, c.fd); */
         int* it = intlist_find(&connections, -1);
         if (it == NULL) {
           intlist_insert(&connections, c.fd);
         } else {
           *it = c.fd;
         }
-      } else if (events[n].data.fd == mq) {
+      } else if (events[n].data.fd == largs->mq) {
         goto error;
       } else {
         rc = onRead(events[n].data.fd);
@@ -232,9 +237,8 @@ void onSignal(int s) {
 }
 
 typedef struct {
-  int* args;
+  ListenerArgs* args;
   pthread_t id;
-  int mq;
   char mqName[128];
 } ListenerInfo;
 
@@ -262,9 +266,9 @@ int main(int argc, char* argv[]) {
     if (mq < 0) {
       continue;
     }
-    listeners[i].mq = mq;
-    listeners[i].args = (int*)malloc(sizeof(int));
-    *(listeners[i].args) = mq;
+    listeners[i].args = (ListenerArgs*)malloc(sizeof(ListenerArgs));
+    listeners[i].args->mq = mq;
+    listeners[i].args->i = i;
     rc = pthread_create(&listeners[i].id, NULL, &onAccept, listeners[i].args);
     if (rc != 0) {
       perror("phread_create");
@@ -272,7 +276,6 @@ int main(int argc, char* argv[]) {
     }
   }
   char recvBuf[256];
-  memset(recvBuf, 0, 256);
   int exit = 0;
   while (!exit) {
     int rc = mq_receive(gMainMq, recvBuf, sizeof(recvBuf), 0);
@@ -284,7 +287,7 @@ int main(int argc, char* argv[]) {
   }
   const char buf[] = "die";
   for (int i = 0; i < listenersSize; ++i) {
-    rc = mq_send(listeners[i].mq, buf, sizeof(buf), 0);
+    rc = mq_send(listeners[i].args->mq, buf, sizeof(buf), 0);
     if (rc < 0) {
       perror("mq_send");
       continue;
@@ -293,7 +296,7 @@ int main(int argc, char* argv[]) {
     if (rc != 0) {
       perror("phread_join");
     }
-    close(listeners[i].mq);
+    close(listeners[i].args->mq);
     rc = mq_unlink(listeners[i].mqName);
     if (rc != 0) {
       perror("mq_unlink");
