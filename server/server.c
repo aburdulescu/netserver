@@ -7,11 +7,11 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include "intvector.h"
 #include "net.h"
+#include "util.h"
 
 static const int kMaxEvents = 10;
 static const size_t kMqMaxName = 128;
@@ -19,7 +19,6 @@ static const char kMqNamePrefix[] = "/epolls_mq_";
 static const size_t kMqNamePrefixSize = sizeof(kMqNamePrefix) - 1;
 
 static void createMqName(int i, char* mqName);
-static int createMq(const char* mqName);
 static void* onAccept(void* args);
 // Returns:
 //  0 - Ok
@@ -33,7 +32,7 @@ void server_new(Server* s, size_t n) {
   memset(s->listeners, 0, listenersSize);
   for (uint64_t i = 0; i < s->listenersLen; ++i) {
     createMqName(i, s->listeners[i].mqName);
-    int mq = createMq(s->listeners[i].mqName);
+    int mq = createMq(s->listeners[i].mqName, 0);
     if (mq < 0) {
       continue;
     }
@@ -92,20 +91,6 @@ static void createMqName(int i, char* mqName) {
   memset(istr, 0, 3);
   sprintf(istr, "%d", i);
   strncpy(mqName + kMqNamePrefixSize, istr, 2);
-}
-
-static int createMq(const char* mqName) {
-  struct mq_attr attr;
-  attr.mq_flags = 0;
-  attr.mq_maxmsg = 10;
-  attr.mq_msgsize = 256;
-  attr.mq_curmsgs = 0;
-  int rc = mq_open(mqName, O_RDWR | O_CREAT | O_NONBLOCK, 0660, &attr);
-  if (rc < 0) {
-    perror("mq_open");
-    return -1;
-  }
-  return rc;
 }
 
 static void* onAccept(void* args) {
