@@ -1,5 +1,5 @@
-#ifndef __EPOLLSERVER_INTVECTOR_NET_H__
-#define __EPOLLSERVER_INTVECTOR_NET_H__
+#ifndef __EPOLLSERVER_SERVER_INTVECTOR_H__
+#define __EPOLLSERVER_SERVER_INTVECTOR_H__
 
 #include <stddef.h>
 #include <stdint.h>
