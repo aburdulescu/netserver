@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
   signal(SIGSEGV, onSignal);
   signal(SIGABRT, onSignal);
   const char mainMqName[] = "/epolls_mq_main";
-  gMainMq = createMq(mainMqName, 1);
+  gMainMq = util_createMq(mainMqName, 1);
   if (gMainMq < 0) {
     return 1;
   }

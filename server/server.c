@@ -32,7 +32,7 @@ void server_new(Server* s, size_t n) {
   memset(s->listeners, 0, listenersSize);
   for (uint64_t i = 0; i < s->listenersLen; ++i) {
     createMqName(i, s->listeners[i].mqName);
-    int mq = createMq(s->listeners[i].mqName, 0);
+    int mq = util_createMq(s->listeners[i].mqName, 0);
     if (mq < 0) {
       continue;
     }

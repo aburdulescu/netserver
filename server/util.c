@@ -3,7 +3,7 @@
 #include <mqueue.h>
 #include <stdio.h>
 
-int createMq(const char* mqName, int isBlocking) {
+int util_createMq(const char* mqName, int isBlocking) {
   struct mq_attr attr;
   attr.mq_flags = 0;
   attr.mq_maxmsg = 10;
