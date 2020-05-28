@@ -12,53 +12,9 @@
 #include <unistd.h>
 
 #include "net.h"
+#include "intvector.h"
 
 static const int MAX_EVENTS = 10;
-
-typedef struct {
-  int* data;
-  size_t len;
-  size_t cap;
-} IntList;
-
-static void intlist_new(IntList* l, size_t cap) {
-  l->cap = (cap == 0) ? 1 : cap;
-  l->len = 0;
-  l->data = (int*)malloc(sizeof(int) * cap);
-}
-
-static void intlist_delete(const IntList* l) {
-  free(l->data);
-}
-
-static void intlist_insert(IntList* l, int v) {
-  if (l->len == l->cap) {
-    l->cap *= 2;
-    int* newData = (int*)malloc(sizeof(int) * l->cap);
-    memcpy(newData, l->data, l->len * sizeof(int));
-    free(l->data);
-    l->data = newData;
-    return;
-  }
-  l->data[l->len] = v;
-  ++l->len;
-}
-
-static int intlist_at(const IntList* l, int i) {
-  if (i < 0 && i >= l->len) {
-    return -1;
-  }
-  return l->data[i];
-}
-
-static int* intlist_find(const IntList* l, int v) {
-  for (int i = 0; i < l->len; ++i) {
-    if (l->data[i] == v) {
-      return l->data + i;
-    }
-  }
-  return NULL;
-}
 
 // 1 - Connection closed
 // 0 - Ok
@@ -123,8 +79,8 @@ static void* onAccept(void* args) {
     perror("epoll_ctl: mq");
     return NULL;
   }
-  IntList connections;
-  intlist_new(&connections, 0);
+  IntVector connections;
+  intvector_new(&connections, 0);
   struct epoll_event events[MAX_EVENTS];
   for (;;) {
     int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
@@ -147,9 +103,9 @@ static void* onAccept(void* args) {
           goto error;
         }
         /* printf("[%d] new conn: %d\n", largs->i, c.fd); */
-        int* it = intlist_find(&connections, -1);
+        int* it = intvector_find(&connections, -1);
         if (it == NULL) {
-          intlist_insert(&connections, c.fd);
+          intvector_insert(&connections, c.fd);
         } else {
           *it = c.fd;
         }
@@ -166,7 +122,7 @@ static void* onAccept(void* args) {
           goto error;
         }
         close(events[n].data.fd);
-        int* it = intlist_find(&connections, events[n].data.fd);
+        int* it = intvector_find(&connections, events[n].data.fd);
         if (it == NULL) {
           continue;
         }
@@ -176,13 +132,13 @@ static void* onAccept(void* args) {
   }
 error:
   for (int i = 0; i < connections.len; ++i) {
-    int v = intlist_at(&connections, i);
+    int v = intvector_at(&connections, i);
     if (v == -1) {
       continue;
     }
     close(v);
   }
-  intlist_delete(&connections);
+  intvector_delete(&connections);
   close(l.fd);
   close(epollfd);
   return NULL;

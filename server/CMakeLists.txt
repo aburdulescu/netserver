@@ -18,5 +18,9 @@ if(EPOLLS_USE_ASAN)
   set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fno-omit-frame-pointer -fsanitize=address")
 endif()
 
-add_executable(epolls main.c net.c)
+add_executable(epolls
+  main.c
+  net.c
+  intvector.c
+  )
 target_link_libraries(epolls PUBLIC pthread rt)
