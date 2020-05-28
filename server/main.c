@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "server.h"
 #include "util.h"
@@ -40,6 +41,7 @@ int main(int argc, char* argv[]) {
   }
   server_stop(&s);
   server_delete(&s);
+  close(gMainMq);
   int rc = mq_unlink(mainMqName);
   if (rc != 0) {
     perror("mq_unlink");
