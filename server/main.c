@@ -11,13 +11,101 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "net.h"
 #include "intvector.h"
+#include "net.h"
 
-static const int MAX_EVENTS = 10;
+typedef struct {
+  int i;
+  int mq;
+} ListenerArgs;
 
-// 1 - Connection closed
-// 0 - Ok
+typedef struct {
+  ListenerArgs* args;
+  pthread_t id;
+  char mqName[128];
+} ListenerInfo;
+
+static const int kMaxEvents = 10;
+static const size_t kMqMaxName = 128;
+static const char kMqNamePrefix[] = "/epolls_mq_";
+static const size_t kMqNamePrefixSize = sizeof(kMqNamePrefix) - 1;
+
+int gMainMq;
+
+// Returns:
+//  0 - Ok
+//  1 - Connection closed
+static int onRead(int fd);
+static void* onAccept(void* args);
+static int createMq(int i, char* mqSuffix, char* mqName, int block);
+static void onSignal(int s);
+
+int main(int argc, char* argv[]) {
+  if (argc < 2) {
+    fprintf(stderr, "error: need listeners count\n");
+    return 1;
+  }
+  signal(SIGINT, onSignal);
+  signal(SIGSEGV, onSignal);
+  signal(SIGABRT, onSignal);
+  char mainMqName[kMqMaxName];
+  gMainMq = createMq(-1, "main", mainMqName, 1);
+  if (gMainMq < 0) {
+    return 1;
+  }
+  const int listenersSize = atoi(argv[1]);
+  ListenerInfo listeners[listenersSize];
+  memset(listeners, 0, sizeof(listeners));
+  int rc;
+  for (int i = 0; i < listenersSize; ++i) {
+    int mq = createMq(i, NULL, listeners[i].mqName, 0);
+    if (mq < 0) {
+      continue;
+    }
+    listeners[i].args = (ListenerArgs*)malloc(sizeof(ListenerArgs));
+    listeners[i].args->mq = mq;
+    listeners[i].args->i = i;
+    rc = pthread_create(&listeners[i].id, NULL, &onAccept, listeners[i].args);
+    if (rc != 0) {
+      perror("phread_create");
+      continue;
+    }
+  }
+  char recvBuf[256];
+  int exit = 0;
+  while (!exit) {
+    int rc = mq_receive(gMainMq, recvBuf, sizeof(recvBuf), 0);
+    if (rc < 0) {
+      perror("mq_receive");
+      return 1;
+    }
+    exit = 1;
+  }
+  const char buf[] = "die";
+  for (int i = 0; i < listenersSize; ++i) {
+    rc = mq_send(listeners[i].args->mq, buf, sizeof(buf), 0);
+    if (rc < 0) {
+      perror("mq_send");
+      continue;
+    }
+    rc = pthread_join(listeners[i].id, NULL);
+    if (rc != 0) {
+      perror("phread_join");
+    }
+    close(listeners[i].args->mq);
+    rc = mq_unlink(listeners[i].mqName);
+    if (rc != 0) {
+      perror("mq_unlink");
+    }
+    free(listeners[i].args);
+  }
+  rc = mq_unlink(mainMqName);
+  if (rc != 0) {
+    perror("mq_unlink");
+  }
+  return 0;
+}
+
 static int onRead(int fd) {
   const size_t bufSize = 8192;
   uint8_t buf[bufSize];
@@ -45,11 +133,6 @@ static int onRead(int fd) {
   }
   return 0;
 }
-
-typedef struct {
-  int i;
-  int mq;
-} ListenerArgs;
 
 static void* onAccept(void* args) {
   ListenerArgs* largs = (ListenerArgs*)args;
@@ -81,9 +164,9 @@ static void* onAccept(void* args) {
   }
   IntVector connections;
   intvector_new(&connections, 0);
-  struct epoll_event events[MAX_EVENTS];
+  struct epoll_event events[kMaxEvents];
   for (;;) {
-    int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
+    int nfds = epoll_wait(epollfd, events, kMaxEvents, -1);
     if (nfds == -1) {
       perror("epoll_wait");
       goto error;
@@ -144,19 +227,15 @@ error:
   return NULL;
 }
 
-const size_t MQ_MAX_NAME = 128;
-const char gMqNamePrefix[] = "/epolls_mq_";
-const size_t gMqNamePrefixSize = sizeof(gMqNamePrefix) - 1;
-
-int createMq(int i, char* mqSuffix, char* mqName, int block) {
-  memset(mqName, 0, MQ_MAX_NAME);
-  strncpy(mqName, gMqNamePrefix, gMqNamePrefixSize);
+static int createMq(int i, char* mqSuffix, char* mqName, int block) {
+  memset(mqName, 0, kMqMaxName);
+  strncpy(mqName, kMqNamePrefix, kMqNamePrefixSize);
   struct mq_attr attr;
   attr.mq_flags = 0;
   attr.mq_maxmsg = 10;
   attr.mq_msgsize = 256;
   attr.mq_curmsgs = 0;
-  int prefixEnd = gMqNamePrefixSize;
+  int prefixEnd = kMqNamePrefixSize;
   if (mqSuffix != NULL) {
     size_t mqSuffixSize = strlen(mqSuffix);
     strncpy(mqName + prefixEnd, mqSuffix, mqSuffixSize);
@@ -180,9 +259,7 @@ int createMq(int i, char* mqSuffix, char* mqName, int block) {
   return rc;
 }
 
-int gMainMq;
-
-void onSignal(int s) {
+static void onSignal(int s) {
   (void)s;
   const char buf[] = "die";
   int rc = mq_send(gMainMq, buf, sizeof(buf), 0);
@@ -190,76 +267,4 @@ void onSignal(int s) {
     perror("mq_send");
     return;
   }
-}
-
-typedef struct {
-  ListenerArgs* args;
-  pthread_t id;
-  char mqName[128];
-} ListenerInfo;
-
-int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    fprintf(stderr, "error: need listeners count\n");
-    return 1;
-  }
-  signal(SIGINT, onSignal);
-  signal(SIGSEGV, onSignal);
-  signal(SIGABRT, onSignal);
-  char mainMqName[MQ_MAX_NAME];
-  gMainMq = createMq(-1, "main", mainMqName, 1);
-  if (gMainMq < 0) {
-    return 1;
-  }
-  const int listenersSize = atoi(argv[1]);
-  ListenerInfo listeners[listenersSize];
-  memset(listeners, 0, sizeof(listeners));
-  int rc;
-  for (int i = 0; i < listenersSize; ++i) {
-    int mq = createMq(i, NULL, listeners[i].mqName, 0);
-    if (mq < 0) {
-      continue;
-    }
-    listeners[i].args = (ListenerArgs*)malloc(sizeof(ListenerArgs));
-    listeners[i].args->mq = mq;
-    listeners[i].args->i = i;
-    rc = pthread_create(&listeners[i].id, NULL, &onAccept, listeners[i].args);
-    if (rc != 0) {
-      perror("phread_create");
-      continue;
-    }
-  }
-  char recvBuf[256];
-  int exit = 0;
-  while (!exit) {
-    int rc = mq_receive(gMainMq, recvBuf, sizeof(recvBuf), 0);
-    if (rc < 0) {
-      perror("mq_receive");
-      return 1;
-    }
-    exit = 1;
-  }
-  const char buf[] = "die";
-  for (int i = 0; i < listenersSize; ++i) {
-    rc = mq_send(listeners[i].args->mq, buf, sizeof(buf), 0);
-    if (rc < 0) {
-      perror("mq_send");
-      continue;
-    }
-    rc = pthread_join(listeners[i].id, NULL);
-    if (rc != 0) {
-      perror("phread_join");
-    }
-    close(listeners[i].args->mq);
-    rc = mq_unlink(listeners[i].mqName);
-    if (rc != 0) {
-      perror("mq_unlink");
-    }
-    free(listeners[i].args);
-  }
-  rc = mq_unlink(mainMqName);
-  if (rc != 0) {
-    perror("mq_unlink");
-  }
-  return 0;
 }
