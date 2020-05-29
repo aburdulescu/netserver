@@ -1,28 +1,28 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(epolls)
+project(cserver)
 
-option(EPOLLS_USE_ASAN "Use address sanitizer" ON)
+option(CSERVER_USE_ASAN "Use address sanitizer" ON)
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-  set(EPOLLS_USE_ASAN "OFF")
+  set(CSERVER_USE_ASAN "OFF")
 endif()
 
-message(STATUS "EPOLLS_USE_ASAN: " ${EPOLLS_USE_ASAN})
+message(STATUS "CSERVER_USE_ASAN: " ${CSERVER_USE_ASAN})
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_FLAGS "-Wall -Wextra")
 
-if(EPOLLS_USE_ASAN)
+if(CSERVER_USE_ASAN)
   set(CMAKE_C_FLAGS "-Wall -Wextra -fno-omit-frame-pointer -fsanitize=address")
   set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fno-omit-frame-pointer -fsanitize=address")
 endif()
 
-add_executable(epolls
+add_executable(cserver
   main.c
   net.c
   intvector.c
   server.c
   util.c
   )
-target_link_libraries(epolls PUBLIC pthread rt)
+target_link_libraries(cserver PUBLIC pthread rt)
