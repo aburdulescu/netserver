@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include "intvector.h"
@@ -20,12 +19,8 @@ static const size_t kMqNamePrefixSize = sizeof(kMqNamePrefix) - 1;
 
 static void createMqName(int i, char* mqName);
 static void* onAccept(void* args);
-// Returns:
-//  0 - Ok
-//  1 - Connection closed
-static int onRead(int fd);
 
-void server_new(Server* s, size_t n) {
+void server_new(Server* s, size_t n, ServerRequestHandler onRequest) {
   const size_t listenersSize = sizeof(ServerListener) * n;
   s->listenersLen = n;
   s->listeners = (ServerListener*)malloc(listenersSize);
@@ -37,9 +32,22 @@ void server_new(Server* s, size_t n) {
       continue;
     }
     s->listeners[i].args = (ServerListenerArgs*)malloc(sizeof(ServerListenerArgs));
+    s->listeners[i].args->onRequest = onRequest;
     s->listeners[i].args->mq = mq;
     s->listeners[i].args->i = i;
   }
+}
+
+void server_delete(const Server* s) {
+  for (uint64_t i = 0; i < s->listenersLen; ++i) {
+    close(s->listeners[i].args->mq);
+    int rc = mq_unlink(s->listeners[i].mqName);
+    if (rc != 0) {
+      perror("mq_unlink");
+    }
+    free(s->listeners[i].args);
+  }
+  free(s->listeners);
 }
 
 int server_start(const Server* s) {
@@ -70,17 +78,6 @@ void server_stop(const Server* s) {
     if (rc != 0) {
       perror("phread_join");
     }
-  }
-}
-
-void server_delete(const Server* s) {
-  for (uint64_t i = 0; i < s->listenersLen; ++i) {
-    close(s->listeners[i].args->mq);
-    int rc = mq_unlink(s->listeners[i].mqName);
-    if (rc != 0) {
-      perror("mq_unlink");
-    }
-    free(s->listeners[i].args);
   }
 }
 
@@ -154,7 +151,7 @@ static void* onAccept(void* args) {
       } else if (events[n].data.fd == largs->mq) {
         goto cleanup;
       } else {
-        rc = onRead(events[n].data.fd);
+        rc = (*largs->onRequest)(events[n].data.fd);
         if (rc == 0) {
           continue;
         }
@@ -184,32 +181,4 @@ cleanup:
   close(l.fd);
   close(epollfd);
   return NULL;
-}
-
-static int onRead(int fd) {
-  const size_t bufSize = 8192;
-  uint8_t buf[bufSize];
-  int rc;
-  rc = recv(fd, buf, bufSize, 0);
-  if (rc == EAGAIN || rc == EWOULDBLOCK) {
-    printf("%s: reading from %d would block\n", __FUNCTION__, fd);
-    return 0;
-  }
-  if (rc < 0) {
-    perror("recv");
-    return 0;
-  }
-  if (rc == 0) {
-    return 1;
-  }
-  rc = send(fd, buf, rc, 0);
-  if (rc == EAGAIN || rc == EWOULDBLOCK) {
-    printf("%s: writing to %d would block\n", __FUNCTION__, fd);
-    return 0;
-  }
-  if (rc < 0) {
-    perror("send");
-    return 0;
-  }
-  return 0;
 }

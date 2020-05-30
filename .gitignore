@@ -1,3 +1,7 @@
-server/b/
-server/.clangd/
-server/compile_commands.json
+client/client
+
+cserver/b/
+cserver/.clangd/
+cserver/compile_commands.json
+
+goserver/goserver

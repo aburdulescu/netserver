@@ -6,7 +6,7 @@
 void intvector_new(IntVector* l, size_t cap) {
   l->cap = (cap == 0) ? 1 : cap;
   l->len = 0;
-  l->data = (int*)malloc(sizeof(int) * cap);
+  l->data = (int*)malloc(sizeof(int) * l->cap);
 }
 
 void intvector_delete(const IntVector* l) {
@@ -20,7 +20,6 @@ void intvector_insert(IntVector* l, int v) {
     memcpy(newData, l->data, l->len * sizeof(int));
     free(l->data);
     l->data = newData;
-    return;
   }
   l->data[l->len] = v;
   ++l->len;
