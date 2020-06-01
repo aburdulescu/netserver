@@ -14,7 +14,7 @@
 
 static const int kMaxEvents = 10;
 static const size_t kMqMaxName = 128;
-static const char kMqNamePrefix[] = "/epolls_mq_";
+static const char kMqNamePrefix[] = "/cserver_mq_";
 static const size_t kMqNamePrefixSize = sizeof(kMqNamePrefix) - 1;
 
 static void createMqName(int i, char* mqName);

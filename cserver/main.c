@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
   signal(SIGINT, onSignal);
   signal(SIGSEGV, onSignal);
   signal(SIGABRT, onSignal);
-  const char mainMqName[] = "/epolls_mq_main";
+  const char mainMqName[] = "/cserver_mq_main";
   gMainMq = util_createMq(mainMqName, 1);
   if (gMainMq < 0) {
     return 1;
