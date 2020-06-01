@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -38,6 +39,12 @@ func sendReq(addr string, id int, n int, results chan []time.Duration) {
 	results <- times
 }
 
+type ResultSlice []int
+
+func (r ResultSlice) Len() int           { return len(r) }
+func (r ResultSlice) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
+func (r ResultSlice) Less(i, j int) bool { return r[i] < r[j] }
+
 func main() {
 	var addr string
 	flag.StringVar(&addr, "s", "localhost:55443", "server address")
@@ -50,21 +57,30 @@ func main() {
 	for i := 0; i < concurrency; i++ {
 		go sendReq(addr, i, requests, results)
 	}
+	var data ResultSlice
 	sum := time.Duration(0)
 	for i := 0; i < concurrency; i++ {
 		r := <-results
 		for j := 0; j < len(r); j++ {
 			sum += r[j]
+			data = append(data, int(r[j]))
 		}
 	}
+	sort.Sort(data)
+	percentile := int(90.0 / 100.0 * float64(len(data)))
+	percentileSum := 0
+	for i := 0; i < percentile; i++ {
+		percentileSum += data[i]
+	}
+	fmt.Println("90th percentile:", time.Duration(percentileSum/percentile))
 	totalReq := int64(concurrency * requests)
 	avgTime := sum / time.Duration(totalReq)
-	fmt.Printf("average time/request: %v\n", avgTime)
+	fmt.Println("average time/request:", avgTime)
 	sumInSec := int64(sum.Seconds())
 	if sumInSec == 0 {
-		fmt.Printf("requests/second: N.A.\n")
+		fmt.Println("requests/second: N.A.")
 		return
 	}
 	reqPerSec := totalReq / sumInSec
-	fmt.Printf("requests/second: %v\n", reqPerSec)
+	fmt.Println("requests/second:", reqPerSec)
 }
