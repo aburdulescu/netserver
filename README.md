@@ -1,5 +1,5 @@
 # netserver
-Attempt to write a high-performance network server in C using POSIX API.
+Attempt to write a high-performance network server in C on GNU/Linux.
 
 ## goserver
 Echo server written in Go.
