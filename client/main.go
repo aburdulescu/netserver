@@ -67,12 +67,26 @@ func main() {
 		}
 	}
 	sort.Sort(data)
-	percentile := int(90.0 / 100.0 * float64(len(data)))
-	percentileSum := 0
-	for i := 0; i < percentile; i++ {
-		percentileSum += data[i]
+	fmt.Println("fastest response time:", time.Duration(data[0]))
+	fmt.Println("slowest response time:", time.Duration(data[len(data)-1]))
+	percentile50 := int(50.0 / 100.0 * float64(len(data)))
+	percentile50Sum := 0
+	for i := 0; i < percentile50; i++ {
+		percentile50Sum += data[i]
 	}
-	fmt.Println("90th percentile:", time.Duration(percentileSum/percentile))
+	fmt.Println("50th percentile:", time.Duration(percentile50Sum/percentile50))
+	percentile95 := int(95.0 / 100.0 * float64(len(data)))
+	percentile95Sum := 0
+	for i := 0; i < percentile95; i++ {
+		percentile95Sum += data[i]
+	}
+	fmt.Println("95th percentile:", time.Duration(percentile95Sum/percentile95))
+	percentile99 := int(99.0 / 100.0 * float64(len(data)))
+	percentile99Sum := 0
+	for i := 0; i < percentile99; i++ {
+		percentile99Sum += data[i]
+	}
+	fmt.Println("99th percentile:", time.Duration(percentile99Sum/percentile99))
 	totalReq := int64(concurrency * requests)
 	avgTime := sum / time.Duration(totalReq)
 	fmt.Println("average time/request:", avgTime)
