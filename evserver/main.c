@@ -3,7 +3,7 @@
 #include <sys/socket.h>
 
 #include "ev.h"
-#include "net.h"
+#include "../cserver/net.h"
 
 static void onRead(struct ev_loop* loop, struct ev_io* w, int revents) {
   if (EV_ERROR & revents) {
@@ -23,13 +23,8 @@ static void onRead(struct ev_loop* loop, struct ev_io* w, int revents) {
   if (rc == 0) {
     ev_io_stop(loop, w);
     free(w);
-    printf("%d: disconnected!\n", w->fd);
     return;
   }
-
-  b[rc] = '\0';
-
-  printf("%d says: %s\n", w->fd, b);
 
   send(w->fd, b, rc, 0);
 }
@@ -47,8 +42,6 @@ static void onAccept(struct ev_loop* loop, struct ev_io* w, int revents) {
     return;
   }
 
-  printf("%d: connected!\n", conn.fd);
-
   struct ev_io* w_client = (struct ev_io*)malloc(sizeof(struct ev_io));
   ev_io_init(w_client, onRead, conn.fd, EV_READ);
   ev_io_start(loop, w_client);
@@ -61,8 +54,6 @@ int main(void) {
     fprintf(stderr, "net_listen: socket_open failed\n");
     return 1;
   }
-
-  printf("listen on port 55443\n");
 
   struct ev_loop* loop = EV_DEFAULT;
 
