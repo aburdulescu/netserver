@@ -5,3 +5,7 @@ cserver/.clangd/
 cserver/compile_commands.json
 
 goserver/goserver
+
+evserver/b/
+evserver/.clangd/
+evserver/compile_commands.json
