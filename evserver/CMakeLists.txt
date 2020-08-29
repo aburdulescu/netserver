@@ -7,5 +7,9 @@ if(CMAKE_BUILD_TYPE EQUAL Debug)
 endif()
 
 add_compile_definitions(EV_STANDALONE)
-add_executable(evserver main.c libev/ev.c)
-target_include_directories(evserver PUBLIC libev)
+add_executable(evserver
+  main.c
+  libev/ev.c
+  ../cserver/net.c
+  )
+target_include_directories(evserver PUBLIC libev ../cserver)
