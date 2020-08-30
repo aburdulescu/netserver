@@ -67,24 +67,24 @@ func main() {
 		}
 	}
 	sort.Sort(data)
-	fmt.Println("fastest response time:", time.Duration(data[0]))
-	fmt.Println("slowest response time:", time.Duration(data[len(data)-1]))
 	p50 := int(50.0 / 100.0 * float64(len(data)))
-	fmt.Println("50th percentile:", time.Duration(data[p50]))
+	fmt.Println("50p:", time.Duration(data[p50]))
 	p95 := int(95.0 / 100.0 * float64(len(data)))
-	fmt.Println("95th percentile:", time.Duration(data[p95]))
+	fmt.Println("95p:", time.Duration(data[p95]))
 	p99 := int(99.0 / 100.0 * float64(len(data)))
-	fmt.Println("99th percentile:", time.Duration(data[p99]))
+	fmt.Println("99p:", time.Duration(data[p99]))
 	p99_9 := int(99.9 / 100.0 * float64(len(data)))
-	fmt.Println("99.9th percentile:", time.Duration(data[p99_9]))
+	fmt.Println("99.9p:", time.Duration(data[p99_9]))
+	fmt.Println("fastest:", time.Duration(data[0]))
+	fmt.Println("slowest:", time.Duration(data[len(data)-1]))
 	totalReq := int64(concurrency * requests)
 	avgTime := sum / time.Duration(totalReq)
-	fmt.Println("average time/request:", avgTime)
+	fmt.Println("average:", avgTime)
 	sumInSec := int64(sum.Seconds())
 	if sumInSec == 0 {
-		fmt.Println("requests/second: N.A.")
+		fmt.Println("req/s: N.A.")
 		return
 	}
 	reqPerSec := totalReq / sumInSec
-	fmt.Println("requests/second:", reqPerSec)
+	fmt.Println("req/s:", reqPerSec)
 }
